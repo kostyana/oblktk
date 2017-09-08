@@ -21,16 +21,15 @@ interface GigabitEthernet0/0
 
 router bgp 1
  bgp log-neighbor-changes
- network 100.0.0.0 mask 255.0.0.0
  network 200.0.0.0 mask 255.0.0.0
+ network 201.0.0.0 mask 255.0.0.0
  neighbor 1.1.1.2 remote-as 100
  neighbor 1.1.1.2 fall-over bfd
  neighbor 1.1.1.2 description R1
  neighbor 1.1.1.2 default-originate
 
-ip route 100.0.0.0 255.0.0.0 Null0
 ip route 200.0.0.0 255.0.0.0 Null0
-
+ip route 201.0.0.0 255.0.0.0 Null0
 
 ### /ISP1 ###
 
@@ -52,7 +51,7 @@ interface GigabitEthernet0/0
  speed auto
  media-type rj45
 
-router bgp 1
+router bgp 2
  bgp log-neighbor-changes
  network 200.0.0.0 mask 255.0.0.0
  network 201.0.0.0 mask 255.0.0.0
@@ -69,7 +68,7 @@ ip route 50.0.0.0 255.0.0.0 Null0
 ip route 51.0.0.0 255.0.0.0 Null0
 
 ip bgp-community new-format 
-ip community-list OUR-BACKUP-COMMUNITY 2:50
+ip community-list standard OUR-BACKUP-COMMUNITY permit 2:50
 
 route-map RM-FROM-GORGEOUS-CUSTOMER permit 10
  match community OUR-BACKUP-COMMUNITY  
@@ -96,6 +95,7 @@ interface GigabitEthernet0/0
  media-type rj45
  bfd interval 500 min_rx 500 multiplier 3
  no ip redirects
+ exit 
 
 interface GigabitEthernet0/1
  description ROUTER-LINKNET-4
@@ -104,6 +104,7 @@ interface GigabitEthernet0/1
  duplex auto
  speed auto
  media-type rj45
+ exit
 
 router bgp 100
  bgp log-neighbor-changes
@@ -115,11 +116,14 @@ router bgp 100
  neighbor 10.10.4.3 description R3
  neighbor 10.10.4.3 next-hop-self
  neighbor 10.10.4.3 prefix-list DEF-ROUTE out
+ neighbor 10.10.4.3 prefix-list PL-FROM-IBGP in
  neighbor 10.10.4.4 remote-as 100
  neighbor 10.10.4.4 description R4
  neighbor 10.10.4.4 next-hop-self
  neighbor 10.10.4.4 prefix-list DEF-ROUTE out
+ neighbor 10.10.4.4 prefix-list PL-FROM-IBGP in 
  neighbor 10.10.4.4 route-map RM-FROM-R4 in
+ exit
 
 ip prefix-list DEF-ROUTE  permit 0.0.0.0/0
 
@@ -127,8 +131,16 @@ ip prefix-list PL-TO-ISP1 seq 5 permit 192.1.1.0/24
 ip prefix-list PL-TO-ISP1 seq 10 permit 192.1.2.0/24
 ip prefix-list PL-TO-ISP1 seq 15 permit 192.1.3.0/24
 
+ip prefix-list PL-FROM-IBGP seq 5 permit 192.1.1.0/24
+ip prefix-list PL-FROM-IBGP seq 10 permit 192.1.2.0/24
+ip prefix-list PL-FROM-IBGP seq 15 permit 192.1.3.0/24
+
 route-map RM-FROM-R4 permit 10
  set local-preference 80
+ exit
+
+ip route 192.1.1.0 255.255.255.0 Null 0 240
+ip route 192.1.2.0 255.255.254.0 Null 0 240
 
 ### /R1 ###
 
@@ -164,11 +176,21 @@ router bgp 100
  neighbor 2.2.2.1 description ISP2
  neighbor 2.2.2.1 prefix-list PL-TO-ISP2 out
  neighbor 2.2.2.1 route-map RM-TO-ISP2 out
+ neighbor 2.2.2.1 send-community
  neighbor 10.10.5.5 remote-as 100
  neighbor 10.10.5.5 description R5
  neighbor 10.10.5.5 next-hop-self
  neighbor 10.10.5.5 prefix-list DEF-ROUTE out
+ neighbor 10.10.5.5 prefix-list PL-FROM-IBGP in
+ neighbor 10.10.5.6 remote-as 100
+ neighbor 10.10.5.6 description R6
+ neighbor 10.10.5.6 next-hop-self
+ neighbor 10.10.5.6 prefix-list DEF-ROUTE out
+ neighbor 10.10.5.6 prefix-list PL-FROM-IBGP in
+ neighbor 10.10.5.6 route-map RM-FROM-R6 in
  exit
+
+ip bgp-community new-format 
 
 ip prefix-list DEF-ROUTE seq 5 permit 0.0.0.0/0
 
@@ -177,9 +199,18 @@ ip prefix-list PL-TO-ISP2 seq 10 permit 192.1.2.0/23
 
 ip prefix-list LONELY-NET seq 5 permit 192.1.1.0/24
 
+ip prefix-list PL-FROM-IBGP seq 5 permit 192.1.1.0/24
+ip prefix-list PL-FROM-IBGP seq 10 permit 192.1.2.0/23
+
 route-map RM-TO-ISP2 permit 10
  match ip address prefix-list LONELY-NET
  set community 2:50
+
+route-map RM-FROM-R6 permit 10
+ set local-preference 80
+
+ip route 192.1.1.0 255.255.255.0 Null 0 240
+ip route 192.1.2.0 255.255.254.0 Null 0 240
 
 ### /R2 ###
 
@@ -249,19 +280,11 @@ router ospf 1
 
 ip prefix-list DEF-ROUTE  permit 0.0.0.0/0
 
-ip prefix-list PL-TO-R1 seq 5 permit 192.1.1.0/24
-ip prefix-list PL-TO-R1 seq 10 permit 192.1.3.0/24
-ip prefix-list PL-TO-R1 seq 15 permit 192.1.2.0/24
-
-ip prefix-list CONNECTED-NET seq 5 permit 192.1.3.0/25
-ip prefix-list CONNECTED-NET seq 10 permit 192.1.1.0/24
-
-route-map RM-TO-R1 permit 10
- match ip address prefix-list PL-TO-R1
+ip prefix-list CONNECTED-NET seq 5 permit 192.1.1.0/24
+ip prefix-list CONNECTED-NET seq 10 permit 192.1.3.0/25
 
 route-map CONNECTED-TO-BGP permit 10
  match ip address prefix-list CONNECTED-NET
-
 
 ### /R3 ###
 
@@ -316,6 +339,7 @@ router bgp 100
  bgp redistribute-internal
  aggregate-address 192.1.3.0 255.255.255.0 summary-only
  redistribute ospf 1
+ redistribute connected route-map CONNECTED-TO-BGP
  neighbor 10.10.4.1 remote-as 100
  neighbor 10.10.4.1 description R1
  neighbor 10.10.4.1 next-hop-self
@@ -327,7 +351,13 @@ router ospf 1
  network 10.10.3.0 0.0.0.255 area 0 
  network 192.1.1.0 0.0.0.255 area 0 
  network 192.1.3.0 0.0.0.127 area 0 
- default-information originate metric 50
+ default-information originate metric 60
+
+ip prefix-list CONNECTED-NET seq 5 permit 192.1.1.0/24
+ip prefix-list CONNECTED-NET seq 10 permit 192.1.3.0/25
+
+route-map CONNECTED-TO-BGP permit 10
+ match ip address prefix-list CONNECTED-NET
 
 ### /R4 ###
 
@@ -383,6 +413,7 @@ router bgp 100
  bgp redistribute-internal
  aggregate-address 192.1.2.0 255.255.254.0 summary-only
  redistribute ospf 1
+ redistribute connected route-map CONNECTED-NET 
  neighbor 10.10.5.2 remote-as 100
  neighbor 10.10.5.2 description R2
  neighbor 10.10.5.2 next-hop-self
@@ -397,6 +428,12 @@ router ospf 1
 
 ip prefix-list PL-TO-R2 seq 5 permit 192.1.1.0/24
 ip prefix-list PL-TO-R2 seq 10 permit 192.1.2.0/22
+
+ip prefix-list CONNECTED-NET seq 5 permit 192.1.2.0/24
+ip prefix-list CONNECTED-NET seq 10 permit 192.1.3.128/25
+
+route-map CONNECTED-TO-BGP permit 10
+ match ip address prefix-list CONNECTED-NET
 
 ### /R5 ###
 
@@ -453,6 +490,7 @@ router bgp 100
  bgp redistribute-internal
  aggregate-address 192.1.2.0 255.255.254.0 summary-only
  redistribute ospf 1
+ redistribute connected router-map CONNECTED-NET
  neighbor 10.10.5.2 remote-as 100
  neighbor 10.10.5.2 description R2
  neighbor 10.10.5.2 next-hop-self
@@ -464,7 +502,13 @@ router ospf 1
  network 10.10.3.0 0.0.0.255 area 0 
  network 192.1.2.0 0.0.0.255 area 0 
  network 192.1.3.128 0.0.0.127 area 0 
- default-information originate metric 50
+ default-information originate metric 70
  exit 
+
+ip prefix-list CONNECTED-NET seq 5 permit 192.1.2.0/24
+ip prefix-list CONNECTED-NET seq 10 permit 192.1.3.128/25
+
+route-map CONNECTED-TO-BGP permit 10
+ match ip address prefix-list CONNECTED-NET
 
 ### /R6 ###

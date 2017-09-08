@@ -1,0 +1,12 @@
+1. Доделать route-map с комьюити на R2
+route-map rm_to_stack permit 5
+ match ip address prefix-list pl_to_stack_wo_community
+ continue
+!
+route-map rm_to_stack permit 10
+ match ip address prefix-list pl_to_stack_w_community
+ set community 
+
+2. Проверить neighbor 10.10.5.5 activate, в лабе что-то не вижу.
+
+3. bgp no auto-summary и no-sync - вспомнить
