@@ -16,6 +16,7 @@ interface GigabitEthernet0/0
  speed auto
  media-type rj45
  bfd interval 500 min_rx 500 multiplier 3
+ no ip redirects
  exit 
 
 router bgp 1
@@ -23,7 +24,7 @@ router bgp 1
  network 100.0.0.0 mask 255.0.0.0
  network 200.0.0.0 mask 255.0.0.0
  neighbor 1.1.1.2 remote-as 100
- neighbor 1.1.1.2 fail-over bfd
+ neighbor 1.1.1.2 fall-over bfd
  neighbor 1.1.1.2 description R1
  neighbor 1.1.1.2 default-originate
 
@@ -94,6 +95,7 @@ interface GigabitEthernet0/0
  speed auto
  media-type rj45
  bfd interval 500 min_rx 500 multiplier 3
+ no ip redirects
 
 interface GigabitEthernet0/1
  description ROUTER-LINKNET-4
@@ -108,7 +110,7 @@ router bgp 100
  neighbor 1.1.1.1 remote-as 1
  neighbor 1.1.1.1 description ISP1
  neighbor 1.1.1.1 prefix-list PL-TO-ISP1 out
- neighbor 1.1.1.1 fail-over bfd
+ neighbor 1.1.1.1 fall-over bfd
  neighbor 10.10.4.3 remote-as 100
  neighbor 10.10.4.3 description R3
  neighbor 10.10.4.3 next-hop-self
@@ -231,6 +233,7 @@ router bgp 100
  bgp redistribute-internal
  aggregate-address 192.1.3.0 255.255.255.0 summary-only
  redistribute ospf 1
+ redistribute connected route-map CONNECTED-TO-BGP
  neighbor 10.10.4.1 remote-as 100
  neighbor 10.10.4.1 description R1
  neighbor 10.10.4.1 next-hop-self
@@ -250,11 +253,14 @@ ip prefix-list PL-TO-R1 seq 5 permit 192.1.1.0/24
 ip prefix-list PL-TO-R1 seq 10 permit 192.1.3.0/24
 ip prefix-list PL-TO-R1 seq 15 permit 192.1.2.0/24
 
+ip prefix-list CONNECTED-NET seq 5 permit 192.1.3.0/25
+ip prefix-list CONNECTED-NET seq 10 permit 192.1.1.0/24
+
 route-map RM-TO-R1 permit 10
  match ip address prefix-list PL-TO-R1
 
-route-map FROM-BGP-TO-OSPF permit 10
- match ip address prefix-list DEF-ROUTE
+route-map CONNECTED-TO-BGP permit 10
+ match ip address prefix-list CONNECTED-NET
 
 
 ### /R3 ###
@@ -389,6 +395,9 @@ router ospf 1
  network 192.1.3.128 0.0.0.127 area 0 
  default-information originate 
 
+ip prefix-list PL-TO-R2 seq 5 permit 192.1.1.0/24
+ip prefix-list PL-TO-R2 seq 10 permit 192.1.2.0/22
+
 ### /R5 ###
 
 ### R6 ###
@@ -431,12 +440,12 @@ interface GigabitEthernet0/3
  speed auto
  media-type rj45
  ip ospf cost 10
- vrrp 1 description VRRP-BACKUP-FOR-VLAN1-CUSTOMER-NETS
- vrrp 1 ip 192.1.2.254
- vrrp 1 ip 192.1.3.126 secondary
- vrrp 1 preempt delay minimum 15
- vrrp 1 authentication md5 key-string 0 vrrp-pass1
- vrrp 1 priority 110 
+ vrrp 2 description VRRP-BACKUP-FOR-VLAN1-CUSTOMER-NETS
+ vrrp 2 ip 192.1.2.254
+ vrrp 2 ip 192.1.3.126 secondary
+ vrrp 2 preempt delay minimum 15
+ vrrp 2 authentication md5 key-string 0 vrrp-pass1
+ vrrp 2 priority 110 
  exit
 
 router bgp 100
