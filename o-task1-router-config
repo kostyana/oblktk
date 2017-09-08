@@ -2,6 +2,8 @@
 
 hostname ISP1
 
+service password-encryption
+
 no banner exec
 no banner incoming
 no banner login 
@@ -31,6 +33,8 @@ ip route 200.0.0.0 255.0.0.0 Null0
 ### ISP2 ###
 
 hostname ISP2
+
+service password-encryption
 
 no banner exec
 no banner incoming
@@ -64,6 +68,8 @@ ip route 51.0.0.0 255.0.0.0 Null0
 ### R1 ###
 
 hostname R1
+
+service password-encryption
 
 no banner exec
 no banner incoming
@@ -115,6 +121,8 @@ route-map RM-FROM-R4 permit 10
 
 hostname R2
 
+service password-encryption
+
 no banner exec
 no banner incoming
 no banner login 
@@ -157,6 +165,8 @@ ip prefix-list PL-TO-ISP2 seq 10 permit 192.1.2.0/23
 
 hostname R3
 
+service password-encryption
+
 no banner exec
 no banner incoming
 no banner login 
@@ -189,6 +199,12 @@ interface GigabitEthernet0/3
  duplex auto
  speed auto
  media-type rj45
+ vrrp 1 description VRRP-MASTER-FOR-VLAN1-CUSTOMER-NETS
+ vrrp 1 ip 192.1.1.254
+ vrrp 1 ip 192.1.3.126 secondary
+ vrrp 1 preempt delay minimum 15
+ vrrp 1 authentication md5 key-string 0 vrrp-pass
+ vrrp 1 priority 120 
 
 router bgp 100
  bgp log-neighbor-changes
@@ -227,6 +243,8 @@ route-map FROM-BGP-TO-OSPF permit 10
 
 hostname R4
 
+service password-encryption
+
 no banner exec
 no banner incoming
 no banner login 
@@ -259,6 +277,13 @@ interface GigabitEthernet0/3
  duplex auto
  speed auto
  media-type rj45
+ ip ospf cost 10
+ vrrp 1 description VRRP-BACKUP-FOR-VLAN1-CUSTOMER-NETS
+ vrrp 1 ip 192.1.1.254
+ vrrp 1 ip 192.1.3.126 secondary
+ vrrp 1 preempt delay minimum 15
+ vrrp 1 authentication md5 key-string 0 vrrp-pass
+ vrrp 1 priority 110 
 
 router bgp 100
  bgp log-neighbor-changes
@@ -283,6 +308,8 @@ router ospf 1
 ### R5 ###
 
 hostname R5
+
+service password-encryption
 
 no banner exec
 no banner incoming
@@ -317,6 +344,12 @@ interface GigabitEthernet0/3
  duplex auto
  speed auto
  media-type rj45
+ vrrp 2 description VRRP-MASTER-FOR-VLAN2-CUSTOMER-NETS
+ vrrp 2 ip 192.1.2.254
+ vrrp 2 ip 192.1.3.254 secondary
+ vrrp 2 preempt delay minimum 15
+ vrrp 2 authentication md5 key-string 0 vrrp-pass
+ vrrp 2 priority 120 
  exit
 
 router bgp 100
@@ -337,3 +370,4 @@ router ospf 1
  default-information originate 
 
 ### /R5 ###
+
