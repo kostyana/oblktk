@@ -27,6 +27,7 @@ router bgp 1
  neighbor 1.1.1.2 fall-over bfd
  neighbor 1.1.1.2 description R1
  neighbor 1.1.1.2 default-originate
+ no auto-summary
 
 ip route 200.0.0.0 255.0.0.0 Null0
 ip route 201.0.0.0 255.0.0.0 Null0
@@ -58,9 +59,10 @@ router bgp 2
  network 50.0.0.0 mask 255.0.0.0
  network 51.0.0.0 mask 255.0.0.0
  neighbor 2.2.2.2 remote-as 100
- neighbor 2.2.2.2 description R1
+ neighbor 2.2.2.2 description R2
  neighbor 2.2.2.2 default-originate
  neighbor 2.2.2.2 route-map RM-FROM-GORGEOUS-CUSTOMER in
+ no auto-summary
 
 ip route 200.0.0.0 255.0.0.0 Null0
 ip route 201.0.0.0 255.0.0.0 Null0
@@ -73,6 +75,8 @@ ip community-list standard OUR-BACKUP-COMMUNITY permit 2:50
 route-map RM-FROM-GORGEOUS-CUSTOMER permit 10
  match community OUR-BACKUP-COMMUNITY  
  set local-preference 50
+
+route-map RM-FROM-GORGEOUS-CUSTOMER permit 20
 
 ### /ISP2 ###
 
@@ -107,6 +111,7 @@ interface GigabitEthernet0/1
  exit
 
 router bgp 100
+ no synchronization
  bgp log-neighbor-changes
  neighbor 1.1.1.1 remote-as 1
  neighbor 1.1.1.1 description ISP1
@@ -123,6 +128,7 @@ router bgp 100
  neighbor 10.10.4.4 prefix-list DEF-ROUTE out
  neighbor 10.10.4.4 prefix-list PL-FROM-IBGP in 
  neighbor 10.10.4.4 route-map RM-FROM-R4 in
+ no auto-summary
  exit
 
 ip prefix-list DEF-ROUTE  permit 0.0.0.0/0
@@ -171,6 +177,7 @@ interface GigabitEthernet0/1
  exit
 
 router bgp 100
+ no synchronization
  bgp log-neighbor-changes
  neighbor 2.2.2.1 remote-as 2
  neighbor 2.2.2.1 description ISP2
@@ -188,6 +195,7 @@ router bgp 100
  neighbor 10.10.5.6 prefix-list DEF-ROUTE out
  neighbor 10.10.5.6 prefix-list PL-FROM-IBGP in
  neighbor 10.10.5.6 route-map RM-FROM-R6 in
+ no auto-summary
  exit
 
 ip bgp-community new-format 
@@ -197,13 +205,19 @@ ip prefix-list DEF-ROUTE seq 5 permit 0.0.0.0/0
 ip prefix-list PL-TO-ISP2 seq 5 permit 192.1.1.0/24
 ip prefix-list PL-TO-ISP2 seq 10 permit 192.1.2.0/23
 
-ip prefix-list LONELY-NET seq 5 permit 192.1.1.0/24
-
 ip prefix-list PL-FROM-IBGP seq 5 permit 192.1.1.0/24
 ip prefix-list PL-FROM-IBGP seq 10 permit 192.1.2.0/23
 
+ip prefix-list PL-TO-ISP2-W-COMMUNITY seq 5 permit 192.1.1.0/24
+
+ip prefix-list PL-TO-ISP2-WO-COMMUNITY seq 5 permit 192.1.2.0/23
+
+route-map RM-TO-ISP2 permit 5
+ match ip address prefix-list PL-TO-ISP2-WO-COMMUNITY
+ continue
+
 route-map RM-TO-ISP2 permit 10
- match ip address prefix-list LONELY-NET
+ match ip address prefix-list PL-TO-ISP2-W-COMMUNITY
  set community 2:50
 
 route-map RM-FROM-R6 permit 10
@@ -260,6 +274,7 @@ interface GigabitEthernet0/3
  vrrp 1 priority 120 
 
 router bgp 100
+ no synchronization
  bgp log-neighbor-changes
  bgp redistribute-internal
  aggregate-address 192.1.3.0 255.255.255.0 summary-only
@@ -269,6 +284,7 @@ router bgp 100
  neighbor 10.10.4.1 description R1
  neighbor 10.10.4.1 next-hop-self
  distance 50 10.10.4.1 0.0.0.0
+ no auto-summary
 
 router ospf 1
  router-id 172.16.0.30
@@ -335,6 +351,7 @@ interface GigabitEthernet0/3
  vrrp 1 priority 110 
 
 router bgp 100
+ no synchronization
  bgp log-neighbor-changes
  bgp redistribute-internal
  aggregate-address 192.1.3.0 255.255.255.0 summary-only
@@ -344,6 +361,7 @@ router bgp 100
  neighbor 10.10.4.1 description R1
  neighbor 10.10.4.1 next-hop-self
  distance 50 10.10.4.1 0.0.0.0
+ no auto-summary
 
 router ospf 1
  router-id 172.16.0.40
@@ -409,6 +427,7 @@ interface GigabitEthernet0/3
  exit
 
 router bgp 100
+ no synchronization
  bgp log-neighbor-changes
  bgp redistribute-internal
  aggregate-address 192.1.2.0 255.255.254.0 summary-only
@@ -417,6 +436,7 @@ router bgp 100
  neighbor 10.10.5.2 remote-as 100
  neighbor 10.10.5.2 description R2
  neighbor 10.10.5.2 next-hop-self
+ no auto-summary
 
 router ospf 1
  router-id 172.16.0.50
@@ -425,9 +445,6 @@ router ospf 1
  network 192.1.2.0 0.0.0.255 area 0 
  network 192.1.3.128 0.0.0.127 area 0 
  default-information originate 
-
-ip prefix-list PL-TO-R2 seq 5 permit 192.1.1.0/24
-ip prefix-list PL-TO-R2 seq 10 permit 192.1.2.0/22
 
 ip prefix-list CONNECTED-NET seq 5 permit 192.1.2.0/24
 ip prefix-list CONNECTED-NET seq 10 permit 192.1.3.128/25
@@ -451,8 +468,8 @@ interface Loopback0
  ip address 172.16.0.60 255.255.255.255
 
 interface GigabitEthernet0/0
- description ROUTER-LINKNET-4
- ip address 10.10.4.6 255.255.255.0
+ description ROUTER-LINKNET-5
+ ip address 10.10.5.6 255.255.255.0
  no shut
  duplex auto
  speed auto
@@ -486,6 +503,7 @@ interface GigabitEthernet0/3
  exit
 
 router bgp 100
+ no synchronization
  bgp log-neighbor-changes
  bgp redistribute-internal
  aggregate-address 192.1.2.0 255.255.254.0 summary-only
@@ -494,6 +512,7 @@ router bgp 100
  neighbor 10.10.5.2 remote-as 100
  neighbor 10.10.5.2 description R2
  neighbor 10.10.5.2 next-hop-self
+ no auto-summary
  exit
 
 router ospf 1
